@@ -1,0 +1,473 @@
+##installing and loading basic packages
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(cluster)
+
+##uploading xls file
+ur_db <- read_excel("C:/Users/vella/Documents/Datasets/AWB Project/DaveList2022_Complete.xlsx")
+glimpse(ur_db)
+
+## data wrangling
+
+#factorising vars
+ur_db <- ur_db %>% mutate(
+  Sex = as.factor(Sex),
+  Locality = as.factor(Locality),
+  Venue = as.factor(Venue),
+  `1st Timer` = as.factor(`1st Timer`),
+  `Deferred Donor` = as.factor(`Deferred Donor`),
+  `Deferral Reason` = as.factor(`Deferral Reason`),
+)
+glimpse(ur_db)
+
+
+#recode localities 
+locality_to_postcode <- c(
+  "ATTARD - MALTA" = "ATD",
+  "BALZAN - MALTA" = "BZN",
+  "BIRGU - MALTA" = "BRG",
+  "BIRKIRKARA - MALTA" = "BKR",
+  "BIRZEBBUGA - MALTA" = "BBG",
+  "BORMLA - MALTA" = "BML",
+  "DINGLI - MALTA" = "DGL",
+  "FGURA - MALTA" = "FGR",
+  "FLORIANA - MALTA" = "FLR",
+  "FONTANA - GOZO" = "FNT",
+  "GHAJNSIELEM - GOZO" = "GSM",
+  "GHARB - GOZO" = "GRB",
+  "GHARGHUR - MALTA" = "GHR",
+  "GHASRI - GOZO" = "GSR",
+  "GHAXAQ - MALTA" = "GXQ",
+  "GUDJA - MALTA" = "GDJ",
+  "GZIRA - MALTA" = "GZR", 
+  "HAMRUN - MALTA" = "HMR",
+  "IKLIN - MALTA" = "IKL",
+  "ISLA - MALTA" = "ISL", 
+  "KALKARA - MALTA" = "KKR",
+  "KERCEM - GOZO" = "KCM",
+  "KIRKOP - MALTA" = "KKP",
+  "LIJA - MALTA" = "LJA",
+  "LUQA - MALTA" = "LQA", 
+  "MARSA - MALTA" = "MRS",
+  "MARSALFORN - GOZO" = "MFN",
+  "MARSASKALA - MALTA" = "MSK",
+  "MARSAXLOKK - MALTA" = "MXK",
+  "MDINA - MALTA" = "MDN",
+  "MELLIEHA - MALTA" = "MLH",
+  "MGARR - MALTA" = "MGR",
+  "MOSTA - MALTA" = "MST",
+  "MQABBA - MALTA" = "MQB",
+  "MSIDA - MALTA" = "MSD",
+  "MTARFA - MALTA" = "MTF",
+  "MUNXAR - GOZO" = "MXR",
+  "NADUR - GOZO" = "NDR",
+  "NAXXAR - MALTA" = "NXR",
+  "PAOLA - MALTA" = "PLA",
+  "PEMBROKE - MALTA" = "PBK", 
+  "PIETA' - MALTA" = "PTA",
+  "QALA - GOZO" = "QLA",
+  "QORMI - MALTA" = "QRM",
+  "QRENDI - MALTA" = "QRD",
+  "RABAT - GOZO" = "VCT",
+  "RABAT - MALTA" = "RBT",
+  "SAFI - MALTA" = "SFI",
+  "SAN GILJAN - MALTA" = "STJ",
+  "SAN GWANN - MALTA" = "SGN",
+  "SAN LAWRENZ - GOZO" = "SLZ",
+  "SAN PAWL IL-BAHAR - MALTA" = "SPB",
+  "SANNAT - GOZO" = "SNT",
+  "SANTA LUCIJA - MALTA" = "SLC",
+  "SANTA VENERA - MALTA" = "SVR",
+  "SIGGIEWI - MALTA" = "SGW",
+  "SLIEMA - MALTA" = "SLM",
+  "SWIEQI - MALTA" = "SWQ",
+  "TA' XBIEX - MALTA" = "XBX",
+  "TARXIEN - MALTA" = "TXN",
+  "VALLETTA - MALTA" = "VLT",
+  "XAGHRA - GOZO" = "XRA",
+  "XEWKIJA - GOZO" = "XWK",
+  "XGHAJRA - MALTA" = "XJR",
+  "XLENDI - GOZO" = "XLN",
+  "ZABBAR - MALTA" = "ZBR",
+  "ZEBBUG - GOZO" = "ZBB",
+  "ZEBBUG - MALTA" = "ZBG",
+  "ZEJTUN - MALTA" = "ZJT",
+  "ZURRIEQ - MALTA" = "ZRQ"
+)
+
+#setting up current date
+current_date <- Sys.Date()
+
+#creating the target var
+target_db <- ur_db %>% mutate(
+  Donor_Status = case_when(
+    difftime(current_date, `Last Visit`, units = "days") > 365 ~ "Donor Lost",
+    `1st Timer` == "First Timer" & difftime(current_date, `Last Visit`, units = "days") <365 ~ "Donor Retained",
+    `1st Timer` == "Regular" & `Donation Frequency` <= 6 & difftime(current_date, `Last Visit`, units = "days") <365 ~ "Donor Retained",
+    TRUE ~ "Donor Lost"
+  )
+)
+
+target_db <- target_db %>% mutate(Donor_Status =
+  as.factor(Donor_Status)
+)
+
+
+target_db <- target_db %>%
+  mutate(Locality = case_when(
+    Locality %in% names(locality_to_postcode) ~ locality_to_postcode[Locality],
+    TRUE ~ Locality  # Keep original if not in mapping
+  )) %>%
+  mutate(Locality = as.factor(Locality)) 
+
+
+str(target_db)  
+glimpse(target_db)
+View(target_db)
+
+#################################################################################
+##visualisation
+
+summary(target_db)
+
+# quick review of donor status
+
+ggplot(target_db, aes(x = Donor_Status, fill = Donor_Status))+
+  geom_bar()+
+  labs(title = "Distribution of Donor_Status")
+
+#  visualise locality
+install.packages("treemap")
+library(treemap)
+
+# Summarize to get counts per Locality
+locality_data <- target_db %>%
+  group_by(Locality) %>%
+  summarise(count = n())
+
+treemap(locality_data, 
+        index = "Locality", 
+        vSize = "count", 
+        title = "Treemap of Localities 2022 - 2023")
+
+ggplot(locality_data, aes(x = count, y = reorder(Locality, count))) +
+  geom_point() +
+  labs(title = "Dot Plot of Locality", x = "Count", y = "Locality")
+
+# Predominant localities per venue
+
+library(purrr)
+
+locality_venue_data <- target_db %>%
+  group_by(Venue, Locality) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+    
+library(treemap)
+
+locality_venue_data %>%
+  group_split(Venue) %>%
+  purrr::walk(function(data_subset) {
+    ven <- unique(data_subset$Venue)
+    treemap(data_subset,
+            index = "Locality",
+            vSize = "count",
+            title = paste("Treemap of Localities for Venue", ven))
+  })
+
+
+# Box plot grid for categoricals
+
+ggplot(target_db, aes(x = Donor_Status, y = Age, fill = Donor_Status)) + 
+  geom_boxplot() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_continuous(limits = c(16, 70)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Age Distribution by Donor Status, Sex, 1st Timer Status, and Venue")
+
+
+
+ggplot(target_db, aes(x = Donor_Status, y = `Donation Frequency`, fill = Donor_Status)) + 
+  geom_boxplot() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_discrete(limits = factor(0:10))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Donation Frequency by Donor Status, Sex, 1st Timer Status, and Venue")
+
+ggplot(target_db, aes(x = Donor_Status, y = `Total Donation Attempts.`, fill = Donor_Status)) + 
+  geom_boxplot() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_continuous(limits = c(0,157))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total Donation Attempt by Donor Status, Sex, 1st Timer Status, and Venue")
+
+
+# Violin plot grid for categoricals 
+
+ggplot(target_db, aes(x = Donor_Status, y = Age, fill = Donor_Status)) + 
+  geom_violin() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_continuous(limits = c(16, 70)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Age Distribution by Donor Status, Sex, 1st Timer Status, and Venue")
+
+
+
+ggplot(target_db, aes(x = Donor_Status, y = `Donation Frequency`, fill = Donor_Status)) + 
+  geom_violin() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_discrete(limits = factor(0:10))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Donation Frequency by Donor Status, Sex, 1st Timer Status, and Venue")
+
+ggplot(target_db, aes(x = Donor_Status, y = `Total Donation Attempts.`, fill = Donor_Status)) + 
+  geom_violin() +
+  facet_wrap(~ Sex + `1st Timer` + Venue, scales = "free_x") +
+  scale_y_continuous(limits = c(0,157))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total Donation Attempt by Donor Status, Sex, 1st Timer Status, and Venue")
+
+
+# heatmap for continuous 
+
+library(reshape2)
+
+# Calculate correlation matrix for numeric variables
+corr_matrix <- cor(target_db %>% select_if(is.numeric))
+glimpse(corr_matrix)
+
+# Plot Heatmap
+ggplot(melt(corr_matrix), aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1)) +
+  theme_minimal() +
+  labs(title = "Correlation Heatmap of Numeric Variables", x = "", y = "")
+
+
+library(plotly)
+
+# Interactive scatter plot for Age vs. Donation Frequency
+plot_ly(target_db, x = ~Age, y = ~`Donation Frequency`, color = ~ Donor_Status, type = 'scatter', mode = 'markers') %>%
+  layout(title = "Interactive Scatter Plot of Age vs. Donation Frequency")
+
+
+
+
+## k-means clustering on training
+
+# preparation of training db
+
+target_numeric <- target_db %>%
+  select(-`Donor No.`) %>% # Drop the 'Donor No.' column
+  select_if(is.numeric) %>%
+  scale()
+
+
+target_numeric <- as.data.frame(target_numeric)
+glimpse(target_numeric)
+
+# Ensure 'training_kmeans' is a dataframe and not a list
+
+target_numeric <- as.data.frame(target_numeric)
+
+
+# elbow method to determine no of clusters
+
+set.seed(123)
+wss <- (nrow(target_numeric)-1)* sum(apply(target_numeric,2, var))
+for( i in 2:15) wss[i] <- sum(kmeans(target_numeric, centers = i)$withinss)
+plot(1:15, wss, type = "b", xlab = "Number of Clusters", ylab = "Within groups sum of squares")
+
+
+### 4 clusters optimum ###
+
+
+
+# Perform K-Means Clustering
+set.seed(123)
+kmeans_result <- kmeans(target_numeric, centers = 4, iter.max = 100)
+
+# Add cluster result to dataframe
+target_db$Cluster <- as.factor(kmeans_result$cluster)
+
+
+glimpse(target_numeric)
+# Visualize Clusters
+ggplot(target_db, aes(x = Cluster, y = Age , color = Donor_Status))+
+  geom_point()+
+  labs(title = "K-Means Clustering of Donors")+
+  theme_minimal()
+
+
+
+#rtsne
+
+install.packages("Rtsne")
+library(Rtsne)
+library(ggplot2)
+
+# Prepare numeric data
+training_rtsne <- target_db %>%
+  #select(-`Donor No.`)%>%
+  select_if(is.numeric) %>% 
+  scale()  # Standardizing the data
+
+
+
+set.seed(123)  # For reproducibility
+tsne_result <- Rtsne(training_rtsne, dims = 2, perplexity = 30, verbose = TRUE, max_iter = 500)
+
+tsne_data <- as.data.frame(tsne_result$Y)
+tsne_data$Cluster <- as.factor(target_db$Cluster) # Add cluster information
+tsne_data$Donor_Status <-target_db$Donor_Status
+glimpse(tsne_data)
+
+ggplot(tsne_data, aes(x = V1, y = V2, color = Donor_Status)) +
+  geom_point() +
+  labs(title = "t-SNE Visualization of Training Data", x = "t-SNE 1", y = "t-SNE 2") +
+  theme_minimal()
+
+#PCA
+
+install.packages("factoextra")
+library(factoextra)
+
+# Prepare numeric data
+training_pca <- target_db %>%
+  select(-`Donor No.`) %>%
+  select_if(is.numeric) %>%
+  scale()  # Standardizing the data
+
+pca_result <- prcomp(training_pca, scale = TRUE)
+
+# Scree Plot to visualize explained variance
+fviz_eig(pca_result, addlabels = TRUE, ylim = c(0, 50))
+
+# Biplot to visualize PCA components
+fviz_pca_biplot(pca_result, 
+                geom.ind = "point", 
+                pointshape = 21, 
+                pointsize = 2,
+                fill.ind = as.factor(target_db$Donor_Status), 
+                col.ind = "black",
+                palette = "jco",
+                addEllipses = TRUE, 
+                label = "var",
+                col.var = "red",
+                repel = TRUE)
+
+
+
+
+# Facet Grid Plot by Clusters
+ggplot(target_db, aes(x = Sex, fill = Donor_Status)) +
+  geom_bar() +
+  facet_wrap(~ Cluster) +
+  labs(title = "Donor Status Distribution across Clusters") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme_minimal()
+
+#Association Mining Rules
+
+install.packages("arules",
+                 repos = c("https://mhahsler.r-universe.dev",
+                           "https://cloud.r-project.org/"))
+
+library(arules)
+
+# Convert relevant columns to factors
+training_arules <- target_db %>%
+  mutate(across(everything(), as.factor))
+
+# Convert to transactions
+transactions <- as(training_arules, "transactions")
+
+rules <- apriori(transactions, parameter = list(supp = 0.01, conf = 0.8))
+
+inspect(sort(rules, by = "lift")[1:10])
+
+
+install.packages("arulesViz")
+library(arulesViz)
+
+plot(rules, method = "graph", engine = "htmlwidget")
+
+######################################################################
+
+## Random Forest Section
+
+#Installation & loading
+install.packages("randomForest")
+install.packages("caret")
+library(randomForest)
+library(caret)
+
+
+
+
+target_db <- target_db %>%
+  mutate(
+    Age = as.numeric(Age),
+    `Donation Frequency` = as.numeric(`Donation Frequency`),
+    `Total Donation Attempts.` = as.numeric(`Total Donation Attempts.`)
+    #First_Visit_Year = as.numeric(format(`First Visit`, "%Y")),
+    #First_Visit_Month = as.numeric(format(`First Visit`, "%m")),
+    #Last_Visit_Year = as.numeric(format(`Last Visit`, "%Y")),
+    #Last_Visit_Month = as.numeric(format(`Last Visit`, "%m")),
+    #Days_Since_First_Visit = as.numeric(difftime(Sys.Date(), `First Visit`, units = "days")),
+    #Days_Since_Last_Visit = as.numeric(difftime(Sys.Date(), `Last Visit`, units = "days"))
+  ) %>%
+  select(-`Donor No.`, -`First Visit`, -`Last Visit`, -`Date of Birth`, -Locality) %>%
+  mutate(across(where(is.factor), as.factor))
+
+str(target_db)
+
+
+names(target_db) <- make.names(names(target_db))
+
+
+# Splitting target_db
+trainIndex <- createDataPartition(target_db$Donor_Status, p = .75, list = FALSE, times = 1)
+trainingData <- target_db[trainIndex,]
+testingData  <- target_db[-trainIndex,]
+
+
+ # Train the Random Forest Model
+ set.seed(123)
+ rf_model <- randomForest(Donor_Status ~ ., data = trainingData, ntree = 500, mtry = 3, importance = TRUE)
+
+ # Evaluation 
+ rf_predictions <- predict(rf_model, newdata = testingData)
+ confusionMatrix(rf_predictions, testingData$Donor_Status)
+
+ varImpPlot(rf_model)
+ 
+ ##Tree visualisation
+ install.packages("randomForestExplainer")
+ library(randomForestExplainer)
+ 
+ # Extract and plot a single tree
+ tree <- getTree(rf_model, k = 1, labelVar = TRUE)
+ plot(tree)
+ 
+ ## Variable Importance Plot
+ 
+  varImpPlot(rf_model, n.var = 9, main = "Ranking of Variables")
+ 
+
+ ## Visualisation of confusion matrix
+ 
+ conf_matrix <- confusionMatrix(rf_predictions, testingData$Donor_Status)
+ 
+ 
+ conf_matrix_df <- as.data.frame(as.table(conf_matrix$table))
+ 
+ ggplot(conf_matrix_df, aes(Reference, Prediction, fill = Freq)) +
+   geom_tile() +
+   scale_fill_gradient(low = "white", high = "red") +
+   geom_text(aes(label = Freq), vjust = 1) +
+   labs(title = "Confusion Matrix", x = "Actual", y = "Predicted")
+ 
