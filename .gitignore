@@ -1,0 +1,5 @@
+"Trash/Ascii_093.csv"
+Trash/
+*.csv
+.Rhistory
+.RData
