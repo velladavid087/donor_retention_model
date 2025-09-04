@@ -94,8 +94,6 @@ Contributions are welcome! To contribute:
 ## ✍️ Authors
 - David Vella (@velladavid087)
 
-## 📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 📞 Contact
 David Vella - [@velladavid087](https://github.com/velladavid087)
